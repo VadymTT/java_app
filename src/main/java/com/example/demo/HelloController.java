@@ -1,45 +1,38 @@
 package com.example.demo;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.util.FileCopyUtils;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 @RestController
 public class HelloController {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    @GetMapping("/")
-    public String hello() {
+    @GetMapping(value = "/", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> getJsonResponse() {
         try {
-            // Читаємо файл response.json безпосередньо з файлової системи контейнера.
-            // Шлях /app/src/main/resources/response.json відповідає тому,
-            // куди ми змонтуємо вашу локальну папку src/main/resources.
-            String jsonContent = Files.readString(
-                    Paths.get("/app/src/main/resources/response.json"), // Змінено шлях
-                    StandardCharsets.UTF_8
-            );
+            // Читаємо файл response.json з ресурсів
+            ClassPathResource resource = new ClassPathResource("response.json");
+            InputStreamReader reader = new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8);
+            String jsonContent = FileCopyUtils.copyToString(reader);
 
-            // Парсимо JSON-рядок
-            JsonNode rootNode = objectMapper.readTree(jsonContent);
-
-            // Отримуємо значення поля "payload"
-            if (rootNode.has("payload") && rootNode.get("payload").isTextual()) {
-                String payloadValue = rootNode.get("payload").asText();
-                return "H---\n" + payloadValue;
-            } else {
-                return "Error: 'payload' field not found or not a string in response.json.";
-            }
+            // Повертаємо JSON з правильним Content-Type
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(jsonContent);
 
         } catch (IOException e) {
+            // У випадку помилки, повертаємо внутрішню помилку сервера
             e.printStackTrace();
-            return "Error reading or parsing response.json: " + e.getMessage();
+            return ResponseEntity.internalServerError()
+                    .body("{\"error\": \"Не вдалося прочитати response.json: " + e.getMessage() + "\"}");
         }
     }
 }
