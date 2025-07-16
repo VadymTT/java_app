@@ -1,0 +1,38 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_ACCOUNT_ID: "272536203079"
+    AWS_REGION: "eu-north-1"
+    ECR_REPOSITORY_NAME: "rep-app-on-domain"
+    IMAGE_TAG: "latest"
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+    commands:
+      - apt-get update -y || yum update -y
+      - apt-get install -y docker.io || yum install -y docker
+      - systemctl start docker || service docker start
+      - docker version
+
+  pre_build:
+    commands:
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY_NAME
+
+  build:
+    commands:
+      - docker build -t $ECR_REPOSITORY_NAME:$IMAGE_TAG .
+      - docker tag $ECR_REPOSITORY_NAME:$IMAGE_TAG $REPOSITORY_URI:$IMAGE_TAG
+
+  post_build:
+    commands:
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - printf '[{"name":"my-spring-boot-container","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+      - cat imagedefinitions.json
+
+artifacts:
+  files:
+    - imagedefinitions.json
